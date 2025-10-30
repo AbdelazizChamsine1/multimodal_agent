@@ -1,17 +1,45 @@
 import os
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
 
-# Gemini API key
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-if not GEMINI_API_KEY:
-    raise ValueError("GEMINI_API_KEY environment variable not set in .env file")
+class Config:
+    """Configuration manager for the RAG application."""
 
-# Chunking settings
-CHUNK_SIZE = 200
-CHUNK_OVERLAP = 50
+    def __init__(self):
+        """Initialize configuration by loading environment variables."""
+        load_dotenv()
 
-# Supported file extensions
-SUPPORTED_EXTS = [".pdf", ".docx", ".txt", ".mp3", ".wav", ".m4a", ".flac", ".ogg"]
+        # Gemini API key
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY")
+        if not self.gemini_api_key:
+            raise ValueError("GEMINI_API_KEY environment variable not set in .env file")
+
+        # PostgreSQL/pgvector configuration
+        self.postgres_host = os.getenv("POSTGRES_HOST", "localhost")
+        self.postgres_port = os.getenv("POSTGRES_PORT", "5432")
+        self.postgres_db = os.getenv("POSTGRES_DB", "rag_vectorstore")
+        self.postgres_user = os.getenv("POSTGRES_USER", "postgres")
+        self.postgres_password = os.getenv("POSTGRES_PASSWORD")
+        if not self.postgres_password:
+            raise ValueError("POSTGRES_PASSWORD environment variable not set in .env file")
+
+        # Vector store collection name
+        self.collection_name = os.getenv("COLLECTION_NAME", "document_embeddings")
+
+        # Connection pool settings
+        self.postgres_pool_size = int(os.getenv("POSTGRES_POOL_SIZE", "5"))
+        self.postgres_max_overflow = int(os.getenv("POSTGRES_MAX_OVERFLOW", "10"))
+
+        # Chunking settings
+        self.chunk_size = 300
+        self.chunk_overlap = 80
+
+        # Supported file extensions
+        self.supported_exts = [".pdf", ".docx", ".txt", ".mp3", ".wav", ".m4a", ".flac", ".ogg"]
+
+    def get_connection_string(self):
+        """Get PostgreSQL connection string."""
+        return (
+            f"postgresql+psycopg://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
