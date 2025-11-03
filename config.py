@@ -1,5 +1,6 @@
 import os
 from dotenv import load_dotenv
+from semantic_cache import SemanticCache
 
 
 class Config:
@@ -36,6 +37,12 @@ class Config:
 
         # Supported file extensions
         self.supported_exts = [".pdf", ".docx", ".txt", ".mp3", ".wav", ".m4a", ".flac", ".ogg"]
+
+        # Semantic cache configuration
+        self.cache_similarity_threshold = float(os.getenv("CACHE_SIMILARITY_THRESHOLD", "0.85"))
+
+        # Initialize semantic cache (lightweight, in-memory)
+        self.semantic_cache = SemanticCache(similarity_threshold=self.cache_similarity_threshold)
 
     def get_connection_string(self):
         """Get PostgreSQL connection string."""

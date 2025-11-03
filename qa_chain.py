@@ -2,8 +2,9 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
+from colorama import Fore, Style
 import os
-import re
+import time
 
 
 class QASystem:
@@ -21,6 +22,7 @@ class QASystem:
         self.llm = None
         self.qa_chain = None
         self.chat_history = []
+        self.semantic_cache = config.semantic_cache  # Use semantic cache from config
         self._initialize_llm()
 
     def _initialize_llm(self):
@@ -31,6 +33,28 @@ class QASystem:
             google_api_key=self.config.gemini_api_key,
             streaming=True
         )
+
+    def _get_cached_response(self, question, context_summary=""):
+        """Retrieve cached response using semantic similarity.
+
+        Args:
+            question: User's question
+            context_summary: Summary of retrieved context (optional)
+
+        Returns:
+            Cached answer string or None if not found
+        """
+        return self.semantic_cache.get(question, context_summary)
+
+    def _save_to_cache(self, question, answer, context_summary=""):
+        """Save response to semantic cache.
+
+        Args:
+            question: User's question
+            answer: LLM response
+            context_summary: Summary of retrieved context (optional)
+        """
+        self.semantic_cache.set(question, answer, context_summary)
 
     def format_docs(self, docs):
         """Format documents with source file information.
@@ -175,25 +199,54 @@ class QASystem:
 
         return self.qa_chain
 
-    def ask(self, question, stream=True):
-        """Ask a question and get an answer.
+    def ask(self, question):
+        """Ask a question and get a full LLM response (no streaming)."""
 
-        Args:
-            question: User's question
-            stream: Whether to stream the response
-
-        Returns:
-            If stream=True: Generator yielding response chunks
-            If stream=False: Complete response string
-        """
+        # Ensure QA chain is ready
         if self.qa_chain is None:
             self.create_qa_chain()
 
-        if stream:
-            return self.qa_chain.stream({"question": question, "chat_history": self.chat_history})
-        else:
-            response = self.qa_chain.invoke({"question": question, "chat_history": self.chat_history})
-            return response
+        # Retrieve context from vectorstores
+        retrieved_docs = self.retrieve_from_vectorstores(question, k=8)
+        context_summary = self._get_context_summary(retrieved_docs)
+
+        # Try getting a cached response
+        cached_response = self._get_cached_response(question, context_summary)
+        if cached_response:
+            return cached_response
+
+        # Cache miss → Call the LLM
+        start_time = time.time()
+
+        # Invoke the LLM synchronously (no streaming)
+        response = self.qa_chain.invoke({
+            "question": question,
+            "chat_history": self.chat_history
+        })
+
+        # Save response to cache for future reuse
+        self._save_to_cache(question, response, context_summary)
+
+        # Print timing info
+        duration = time.time() - start_time
+        print(f"{Fore.YELLOW}[DEBUG] LLM response time: {duration:.3f}s{Style.RESET_ALL}")
+
+        return response
+
+    def _get_context_summary(self, docs):
+        """Generate a summary of context for cache key.
+
+        Args:
+            docs: List of retrieved documents
+
+        Returns:
+            String summary of document sources
+        """
+        if not docs:
+            return "no_context"
+        # Create a consistent summary based on document sources
+        sources = sorted(set(doc.metadata.get("source", "unknown") for doc in docs))
+        return "|".join(sources[:3])  # Use top 3 sources for cache key
 
     def update_history(self, question, answer):
         """Update chat history with the latest Q&A pair.

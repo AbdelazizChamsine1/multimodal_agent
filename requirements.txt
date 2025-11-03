@@ -26,5 +26,8 @@ python-docx>=1.1.0
 colorama>=0.4.6
 python-dotenv>=1.0.0
 
+# Semantic caching (using sentence-transformers already listed above)
+numpy>=1.24.0
+
 # Optional: For GPU acceleration (comment out if using CPU only)
 # torch>=2.0.0

@@ -90,7 +90,7 @@ class RAGApplication:
                 print(Fore.GREEN + "\nAnswer: ", end="", flush=True)
  
                 full_response = ""
-                for chunk in self.qa_system.ask(query, stream=True):
+                for chunk in self.qa_system.ask(query):
                     print(chunk, end="", flush=True)
                     full_response += chunk
                     sys.stdout.flush()  # Ensure immediate output

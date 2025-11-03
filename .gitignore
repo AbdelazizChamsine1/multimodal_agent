@@ -2,3 +2,7 @@ __pycache__
 .venv
 .gitignore
 .env
+
+# LLM Cache
+.langchain_cache.db
+.qa_response_cache.db
