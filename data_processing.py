@@ -14,14 +14,15 @@ class DocumentProcessor:
     def __init__(self, config, max_concurrent_files=5):
         """Initialize the document processor.
  
-        Args:
+        Args: 
             config: Config instance (required)
             max_concurrent_files: Maximum number of files to process concurrently
         """
         self.config = config
         self._whisper_model = None
         self.max_concurrent_files = max_concurrent_files
-        self._executor = ThreadPoolExecutor(max_workers=max_concurrent_files)
+        max_workers = os.cpu_count() or max_concurrent_files
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
  
     def get_whisper_model(self):
         """Get or create Whisper model singleton for efficient reuse."""

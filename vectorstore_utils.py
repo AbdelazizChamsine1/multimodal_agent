@@ -26,10 +26,11 @@ class VectorStoreManager:
         self._metadata = None
         self.vectorstores = {}
         self.max_concurrent_stores = max_concurrent_stores
-        self._executor = ThreadPoolExecutor(max_workers=max_concurrent_stores)
+        max_workers = os.cpu_count() or max_concurrent_stores
+        self._executor = ThreadPoolExecutor(max_workers=max_workers)
  
     def get_connection_string(self):
-        """Get PostgreSQL connection string (cached)."""
+        """Get PostgreSQL connection string ."""
         if self._connection_string is None:
             self._connection_string = self.config.get_connection_string()
         return self._connection_string
@@ -207,7 +208,7 @@ class VectorStoreManager:
         Returns:
             Dict mapping filename -> PGVector vectorstore instance
         """
-        self.init_vectorstore()
+        # self.init_vectorstore()
         embeddings = self.get_embeddings()
         connection_string = self.get_connection_string()
  
@@ -330,7 +331,7 @@ class VectorStoreManager:
  
             except Exception as e:
                 # Collection doesn't exist or is invalid - will be created later
-                print(f"[DEBUG] Could not load vectorstore for '{filename}': {e}")
+                # print(f"[DEBUG] Could not load vectorstore for '{filename}': {e}")
                 pass
  
     def get_available_files(self):
