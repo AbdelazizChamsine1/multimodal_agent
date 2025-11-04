@@ -200,7 +200,7 @@ class QASystem:
         return self.qa_chain
 
     def ask(self, question):
-        """Ask a question and get a full LLM response (no streaming)."""
+        """Ask a question and stream the LLM response."""
 
         # Ensure QA chain is ready
         if self.qa_chain is None:
@@ -213,25 +213,32 @@ class QASystem:
         # Try getting a cached response
         cached_response = self._get_cached_response(question, context_summary)
         if cached_response:
-            return cached_response
+            print(f"{Fore.CYAN}[CACHE HIT] Response retrieved from cache{Style.RESET_ALL}\n")
+            # Yield cached response as a single chunk
+            yield cached_response
+            return
 
-        # Cache miss → Call the LLM
+        # Cache miss → Call the LLM with streaming
+        print(f"{Fore.YELLOW}[CACHE MISS] Generating new response...{Style.RESET_ALL}\n")
         start_time = time.time()
 
-        # Invoke the LLM synchronously (no streaming)
-        response = self.qa_chain.invoke({
+        # Stream the LLM response
+        full_response = ""
+        for chunk in self.qa_chain.stream({
             "question": question,
             "chat_history": self.chat_history
-        })
+        }):
+            full_response += chunk
+            yield chunk
 
         # Save response to cache for future reuse
-        self._save_to_cache(question, response, context_summary)
+        self._save_to_cache(question, full_response, context_summary)
 
         # Print timing info
         duration = time.time() - start_time
-        print(f"{Fore.YELLOW}[DEBUG] LLM response time: {duration:.3f}s{Style.RESET_ALL}")
+        print(f"\n{Fore.YELLOW}[DEBUG] LLM response time: {duration:.3f}s{Style.RESET_ALL}")
 
-        return response
+        return
 
     def _get_context_summary(self, docs):
         """Generate a summary of context for cache key.
@@ -261,7 +268,3 @@ class QASystem:
         # Keep last 5 Q&A pairs (10 messages)
         if len(self.chat_history) > 10:
             self.chat_history = self.chat_history[-10:]
-
-    def clear_history(self):
-        """Clear the chat history."""
-        self.chat_history = []

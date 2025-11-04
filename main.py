@@ -28,7 +28,7 @@ class RAGApplication:
  
     async def initialize_async(self):
         """Initialize the application by processing documents and creating vector stores (asynchronous)."""
-        print(Fore.YELLOW + "[INFO] Processing files and creating per-file pgvector stores (async mode)...")
+        print(Fore.YELLOW + "[INFO] Processing files and creating per-file pgvector stores ...")
  
         # Initialize vectorstore (creates tables)
         self.vector_manager.init_vectorstore()

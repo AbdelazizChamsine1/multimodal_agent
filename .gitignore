@@ -6,3 +6,4 @@ __pycache__
 # LLM Cache
 .langchain_cache.db
 .qa_response_cache.db
+models/

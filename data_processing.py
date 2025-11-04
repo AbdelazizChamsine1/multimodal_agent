@@ -27,7 +27,7 @@ class DocumentProcessor:
     def get_whisper_model(self):
         """Get or create Whisper model singleton for efficient reuse."""
         if self._whisper_model is None:
-            print(Fore.YELLOW + "[INFO] Loading Whisper 'base' model (first time only)...")
+            print(Fore.YELLOW + "[INFO] Loading Whisper 'base' model ...")
             self._whisper_model = whisper.load_model("base")
             print(Fore.GREEN + "[INFO] Whisper model loaded successfully")
         return self._whisper_model
@@ -151,7 +151,7 @@ class DocumentProcessor:
  
         chunks_by_file = {}
  
-        # Determine which files need processing (if vector_manager provided)
+        # Determine which files need processing 
         files_to_process = []
         files_skipped = []
  
@@ -204,4 +204,14 @@ class DocumentProcessor:
         total_chunks = sum(len(chunks) for chunks in chunks_by_file.values())
         print(Fore.GREEN + f"[INFO] Finished processing {len(files_to_process)} files. Total chunks: {total_chunks}")
         return chunks_by_file
+
+    def cleanup(self):
+        """Clean up resources (thread pool executor)."""
+        if hasattr(self, '_executor') and self._executor is not None:
+            self._executor.shutdown(wait=True)
+            print(Fore.YELLOW + "[INFO] DocumentProcessor thread pool shut down")
+
+    def __del__(self):
+        """Ensure cleanup on garbage collection."""
+        self.cleanup()
  

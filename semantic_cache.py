@@ -6,8 +6,9 @@ from colorama import Fore, Style
 
 class SemanticCache:
     """In-memory semantic cache using cosine similarity for question matching."""
+    model_instance = None
 
-    def __init__(self, similarity_threshold: float = 0.85, model_name: str = "all-MiniLM-L6-v2"):
+    def __init__(self, similarity_threshold: float = 0.85, model_name: str = "./models/all-MiniLM-L6-v2"):
         """Initialize semantic cache.
 
         Args:
@@ -16,7 +17,9 @@ class SemanticCache:
         """
         self.similarity_threshold = similarity_threshold
         self.cache: Dict[str, Tuple[np.ndarray, str]] = {}  # {question: (embedding, answer)}
-        self.model = SentenceTransformer(model_name)
+        if not SemanticCache.model_instance:
+            SemanticCache.model_instance = SentenceTransformer(model_name)
+        self.model = SemanticCache.model_instance
 
     def _get_embedding(self, text: str) -> np.ndarray:
         """Generate embedding for text.

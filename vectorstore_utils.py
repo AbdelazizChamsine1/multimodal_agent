@@ -212,7 +212,7 @@ class VectorStoreManager:
         embeddings = self.get_embeddings()
         connection_string = self.get_connection_string()
  
-        # Load existing vectorstores for files with empty chunks (unchanged files)
+        # Load existing vectorstores for unchanged files
         self._load_existing_vectorstores(chunks_by_file)
  
         # Determine which files need vectorstore creation (files with chunks)
@@ -331,7 +331,7 @@ class VectorStoreManager:
  
             except Exception as e:
                 # Collection doesn't exist or is invalid - will be created later
-                # print(f"[DEBUG] Could not load vectorstore for '{filename}': {e}")
+                print(f"[DEBUG] Could not load vectorstore for '{filename}': {e}")
                 pass
  
     def get_available_files(self):
@@ -341,4 +341,14 @@ class VectorStoreManager:
             List of filenames
         """
         return sorted(list(self.vectorstores.keys()))
+
+    def cleanup(self):
+        """Clean up resources (thread pool executor)."""
+        if hasattr(self, '_executor') and self._executor is not None:
+            self._executor.shutdown(wait=True)
+            print("[INFO] VectorStoreManager thread pool shut down")
+
+    def __del__(self):
+        """Ensure cleanup on garbage collection."""
+        self.cleanup()
  
