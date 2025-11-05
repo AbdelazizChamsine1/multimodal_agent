@@ -2,7 +2,6 @@ import os
 from dotenv import load_dotenv
 from semantic_cache import SemanticCache
 
-
 class Config:
     """Configuration manager for the RAG application."""
 
@@ -43,6 +42,11 @@ class Config:
 
         # Initialize semantic cache (lightweight, in-memory)
         self.semantic_cache = SemanticCache(similarity_threshold=self.cache_similarity_threshold)
+
+        # Reranking configuration
+        self.reranker_model = os.getenv("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-12-v2")
+        self.retrieve_k = int(os.getenv("RETRIEVE_K", "20"))  # Candidates to retrieve before reranking
+        self.final_k = int(os.getenv("FINAL_K", "8"))  # Final documents after reranking
 
     def get_connection_string(self):
         """Get PostgreSQL connection string."""

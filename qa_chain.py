@@ -3,6 +3,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.messages import HumanMessage, AIMessage
 from colorama import Fore, Style
+from sentence_transformers import CrossEncoder
 import os
 import time
 
@@ -23,6 +24,7 @@ class QASystem:
         self.qa_chain = None
         self.chat_history = []
         self.semantic_cache = config.semantic_cache  # Use semantic cache from config
+        self.reranker = None  # Will be initialized lazily
         self._initialize_llm()
 
     def _initialize_llm(self):
@@ -33,6 +35,13 @@ class QASystem:
             google_api_key=self.config.gemini_api_key,
             streaming=True
         )
+
+    def _initialize_reranker(self):
+        """Initialize the reranker model lazily (only when first needed)."""
+        if self.reranker is None:
+            print(f"{Fore.YELLOW}[INFO] Loading reranker model: {self.config.reranker_model}...{Style.RESET_ALL}")
+            self.reranker = CrossEncoder(self.config.reranker_model)
+            print(f"{Fore.GREEN}[INFO] Reranker loaded successfully!{Style.RESET_ALL}")
 
     def _get_cached_response(self, question, context_summary=""):
         """Retrieve cached response using semantic similarity.
@@ -117,16 +126,56 @@ class QASystem:
 
         return mentioned_files
 
-    def retrieve_from_vectorstores(self, question, k=8):
-        """Retrieve documents using separate pgvector vectorstores per file.
+    def _rerank_documents(self, question, docs, top_k):
+        """Rerank documents using CrossEncoder for better relevance.
 
         Args:
             question: User's question
-            k: Number of documents to retrieve
+            docs: List of Document objects
+            top_k: Number of documents to return after reranking
 
         Returns:
-            List of retrieved documents
+            Reranked list of top_k documents
         """
+        if len(docs) <= top_k:
+            return docs
+
+        # Ensure reranker is loaded
+        self._initialize_reranker()
+
+        # Prepare question-document pairs for reranking
+        pairs = [[question, doc.page_content] for doc in docs]
+
+        # Score all pairs with the reranker
+        scores = self.reranker.predict(pairs)
+
+        # Sort documents by reranking scores (descending)
+        doc_scores = list(zip(docs, scores))
+        doc_scores.sort(key=lambda x: x[1], reverse=True)
+
+        # Return top-k reranked documents
+        reranked_docs = [doc for doc, score in doc_scores[:top_k]]
+
+        # Print reranking info for debugging
+        print(f"{Fore.CYAN}[RERANK] {len(docs)} candidates → {top_k} docs (top score: {doc_scores[0][1]:.3f}){Style.RESET_ALL}")
+
+        return reranked_docs
+
+    def retrieve_from_vectorstores(self, question, k=None):
+        """Retrieve documents using separate pgvector vectorstores per file with reranking.
+
+        Args:
+            question: User's question
+            k: Number of final documents to return (uses config.final_k if not provided)
+
+        Returns:
+            List of retrieved and reranked documents
+        """
+        if k is None:
+            k = self.config.final_k
+
+        retrieve_k = self.config.retrieve_k  # Number of candidates to retrieve before reranking
+
         vectorstores = self.vector_store_manager.vectorstores
         available_files = self.vector_store_manager.get_available_files()
         mentioned_files = self.detect_file_mention(question, available_files)
@@ -138,18 +187,18 @@ class QASystem:
                 if filename in vectorstores:
                     retriever = vectorstores[filename].as_retriever(
                         search_type="similarity",
-                        search_kwargs={"k": k}
+                        search_kwargs={"k": retrieve_k}  # Retrieve more candidates
                     )
                     docs = retriever.invoke(question)
                     all_docs.extend(docs)
 
-            # Return documents from mentioned files only
+            # Rerank and return top k documents
             if all_docs:
-                return all_docs[:k]
+                return self._rerank_documents(question, all_docs, k)
 
         # No specific file mentioned: search across all vectorstores and aggregate results
         all_docs = []
-        docs_per_file = max(1, k // len(vectorstores))  # Distribute k across files
+        docs_per_file = max(2, retrieve_k // len(vectorstores))  # Distribute retrieve_k across files
 
         for filename, vectorstore in vectorstores.items():
             retriever = vectorstore.as_retriever(
@@ -159,7 +208,8 @@ class QASystem:
             docs = retriever.invoke(question)
             all_docs.extend(docs)
 
-        return all_docs[:k]
+        # Rerank all candidates and return top k
+        return self._rerank_documents(question, all_docs, k)
 
     def create_qa_chain(self):
         """Create QA chain using pgvector vectorstores.
@@ -187,7 +237,7 @@ class QASystem:
         self.qa_chain = (
             {
                 "context": lambda x: self.format_docs(
-                    self.retrieve_from_vectorstores(x["question"], k=8)
+                    self.retrieve_from_vectorstores(x["question"])
                 ),
                 "question": lambda x: x["question"],
                 "chat_history": lambda x: x["chat_history"]
@@ -206,19 +256,15 @@ class QASystem:
         if self.qa_chain is None:
             self.create_qa_chain()
 
-        # Retrieve context from vectorstores
-        retrieved_docs = self.retrieve_from_vectorstores(question, k=8)
-        context_summary = self._get_context_summary(retrieved_docs)
-
-        # Try getting a cached response
-        cached_response = self._get_cached_response(question, context_summary)
+        # Check cache first
+        # This avoids expensive retrieval and reranking on cache hits
+        cached_response = self._get_cached_response(question, context_summary="")
         if cached_response:
-            print(f"{Fore.CYAN}[CACHE HIT] Response retrieved from cache{Style.RESET_ALL}\n")
-            # Yield cached response as a single chunk
+            print(f"{Fore.CYAN}[CACHE HIT] Response retrieved from cache (no retrieval/reranking needed){Style.RESET_ALL}\n")
             yield cached_response
             return
 
-        # Cache miss → Call the LLM with streaming
+        # Cache miss → Call the LLM with streaming (chain will handle retrieval+reranking)
         print(f"{Fore.YELLOW}[CACHE MISS] Generating new response...{Style.RESET_ALL}\n")
         start_time = time.time()
 
@@ -231,8 +277,8 @@ class QASystem:
             full_response += chunk
             yield chunk
 
-        # Save response to cache for future reuse
-        self._save_to_cache(question, full_response, context_summary)
+        # Save response to cache for future reuse (question-only caching)
+        self._save_to_cache(question, full_response, context_summary="")
 
         # Print timing info
         duration = time.time() - start_time

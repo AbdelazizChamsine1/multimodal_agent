@@ -1,15 +1,3 @@
-"""
-Database initialization script for pgvector RAG system.
-
-This script:
-1. Creates the PostgreSQL database if it doesn't exist
-2. Enables the pgvector extension
-3. Verifies the setup
-
-Usage:
-    python init_db.py
-"""
-
 import sys
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError, ProgrammingError
