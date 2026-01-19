@@ -1,0 +1,16 @@
+services:
+  db:
+    image: pgvector/pgvector:pg18
+    container_name: pgvector-18-custom
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 1234
+      POSTGRES_DB: rag_vectorstore
+    volumes:
+      - pgdata_18:/var/lib/postgresql
+    restart: always
+
+volumes:
+  pgdata_18:

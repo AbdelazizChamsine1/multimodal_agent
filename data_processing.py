@@ -43,27 +43,38 @@ class DocumentProcessor:
  
         Raises:
             ValueError: If no speech could be transcribed
+            RuntimeError: If FFmpeg is not available
         """
-        print(Fore.YELLOW + f"[INFO] Transcribing audio: {file_path} (this may take a while)...")
-        model = self.get_whisper_model()
-        result = model.transcribe(file_path, fp16=False)
-        transcript = result["text"].strip()
-        if not transcript:
-            raise ValueError(f"No speech could be transcribed from {file_path}")
-        print(Fore.GREEN + f"[INFO] Transcription complete ({len(transcript)} characters)")
-        return transcript
- 
+        try:
+            print(Fore.YELLOW + f"[INFO] Transcribing audio: {file_path} (this may take a while)...")
+            model = self.get_whisper_model()
+            result = model.transcribe(file_path, fp16=False)
+            transcript = result["text"].strip()
+            if not transcript:
+                raise ValueError(f"No speech could be transcribed from {file_path}")
+            print(Fore.GREEN + f"[INFO] Transcription complete ({len(transcript)} characters)")
+            return transcript
+        except FileNotFoundError as e:
+            if "ffmpeg" in str(e).lower() or "avconv" in str(e).lower():
+                raise RuntimeError(
+                    f"FFmpeg is required for audio processing but not found. "
+                    f"Please install FFmpeg: https://ffmpeg.org/download.html\n"
+                    f"Original error: {e}"
+                )
+            raise
+
     async def transcribe_audio_async(self, file_path):
         """Transcribe audio file asynchronously using thread executor.
- 
+
         Args:
             file_path: Path to audio file
- 
+
         Returns:
             Transcribed text string
- 
+
         Raises:
             ValueError: If no speech could be transcribed
+            RuntimeError: If FFmpeg is not available
         """
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(self._executor, self._transcribe_audio_sync, file_path)

@@ -8,7 +8,7 @@ class SemanticCache:
     """In-memory semantic cache using cosine similarity for question matching."""
     model_instance = None
 
-    def __init__(self, similarity_threshold: float = 0.85, model_name: str = "./models/all-MiniLM-L6-v2"):
+    def __init__(self, similarity_threshold: float = 0.85, model_name: str = "all-MiniLM-L6-v2"):
         """Initialize semantic cache.
 
         Args:

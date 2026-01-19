@@ -2,10 +2,15 @@ import sys
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import OperationalError, ProgrammingError
 from colorama import Fore, Style
-from config import (
-    POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB,
-    POSTGRES_USER, POSTGRES_PASSWORD
-)
+from config import Config
+
+# Initialize config
+config = Config()
+POSTGRES_HOST = config.postgres_host
+POSTGRES_PORT = config.postgres_port
+POSTGRES_DB = config.postgres_db
+POSTGRES_USER = config.postgres_user
+POSTGRES_PASSWORD = config.postgres_password
 
 
 def create_database():

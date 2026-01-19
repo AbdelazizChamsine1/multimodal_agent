@@ -244,15 +244,37 @@ class VectorStoreManager:
                     # Create or use existing collection with filename as collection suffix
                     collection_name = f"{self.config.collection_name}_{self.sanitize_collection_name(filename)}"
  
-                    # Create PGVector store from documents with MetaData fix
-                    vectorstore = PGVector.from_documents(
-                        documents=chunks,
-                        embedding=embeddings,
-                        collection_name=collection_name,
-                        connection=connection_string,
-                        pre_delete_collection=True,  # Clear existing data for this file
-                        use_jsonb=True  # Use JSONB for metadata (better performance)
-                    )
+                    # Create PGVector store from documents
+                    # Note: PGVector creates its own tables internally
+                    try:
+                        vectorstore = PGVector.from_documents(
+                            documents=chunks,
+                            embedding=embeddings,
+                            collection_name=collection_name,
+                            connection=connection_string,
+                            pre_delete_collection=True,  # Clear existing data for this file
+                            use_jsonb=True  # Use JSONB for metadata (better performance)
+                        )
+                    except Exception as e:
+                        if "already defined" in str(e):
+                            # If table already exists, connect to existing collection
+                            vectorstore = PGVector(
+                                embedding_function=embeddings,
+                                collection_name=collection_name,
+                                connection=connection_string,
+                                use_jsonb=True
+                            )
+                            # Clear and re-add documents
+                            vectorstore.delete_collection()
+                            vectorstore = PGVector.from_documents(
+                                documents=chunks,
+                                embedding=embeddings,
+                                collection_name=collection_name,
+                                connection=connection_string,
+                                use_jsonb=True
+                            )
+                        else:
+                            raise
  
                     # Update file tracking with hash
                     file_hash = self._compute_file_hash(file_path)
