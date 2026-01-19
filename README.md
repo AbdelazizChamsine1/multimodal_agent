@@ -265,10 +265,3 @@ You should see the `vector` extension listed.
 - **SQLAlchemy**: Database ORM
 - **Docker**: Containerization
 
-## License
-
-[Your License Here]
-
-## Contributing
-
-[Your contribution guidelines here]
